@@ -1,144 +1,144 @@
 /*
- * Tweak Name: 1KeyHideDYUI
- * Target App: com.ss.iphone.ugc.Aweme
- * Dev: @c00kiec00k 曲奇的坏品味🍻
- * iOS Version: 16.5
- */
-#import "DYYYManager.h"
-#import <Foundation/Foundation.h>
-#import <UIKit/UIKit.h>
+*调整名称：1KeyHiDedyUi
+*目标应用程序：com.s.s.iphone.ugc.aweme
+* Dev: @c00kiec00k 曲奇的坏品味🍻
+* iOS版本：16.5
+*/
+#import“ dyyymanager.h”
+#import <findion/fistion.h>
+#import <uikit/uikit.h>
 #import <signal.h>
 // 添加变量跟踪是否在目标视图控制器中
-static BOOL isInPlayInteractionVC = NO;
+静态bool isInplayInteractionvc = no;
 // HideUIButton 接口声明
-@interface HideUIButton : UIButton
+@interface hideuibutton：uibutton
 // 状态属性
-@property(nonatomic, assign) BOOL isElementsHidden;
-@property(nonatomic, assign) BOOL isLocked;
+@property（非原子，分配）bool iselementshidder;
+@property（非原子，分配）bool islocked;
 // UI 相关属性
-@property(nonatomic, strong) NSMutableArray *hiddenViewsList;
-@property(nonatomic, strong) UIImage *showIcon;
-@property(nonatomic, strong) UIImage *hideIcon;
-@property(nonatomic, assign) CGFloat originalAlpha;
+@property（非原子，强）nsmutablearray *sideenviewSlist;
+@property（非原子，强）uiimage *showicon;
+@property（非原子，强）uiimage *hideicon;
+@property（非原子，分配）cgfloat OriginalAlpha;
 // 计时器属性
-@property(nonatomic, strong) NSTimer *checkTimer;
-@property(nonatomic, strong) NSTimer *fadeTimer;
+@property（非原子，强）nstimer *checktimer;
+@property（非原子，强）nstimer *fadetimer;
 // 新增属性：用于显示 GIF 动画
-@property(nonatomic, strong) UIImageView *gifImageView;
+@property（非原子，强）uiimageView *gifimageView;
 // 方法声明
-- (void)resetFadeTimer;
-- (void)hideUIElements;
-- (void)findAndHideViews:(NSArray *)classNames;
-- (void)safeResetState;
-- (void)startPeriodicCheck;
-- (UIViewController *)findViewController:(UIView *)view;
-- (void)loadIcons;
-- (void)handlePan:(UIPanGestureRecognizer *)gesture;
-- (void)handleTap;
-- (void)handleLongPress:(UILongPressGestureRecognizer *)gesture;
-- (void)handleTouchDown;
-- (void)handleTouchUpInside;
-- (void)handleTouchUpOutside;
-- (void)saveLockState;
-- (void)loadLockState;
-@end
+- （void）resetfadetimer;
+- （void）hideuielement;
+- （void）findandhideviews：（nsarray *）classNames;
+- （void）SaferesetState;
+- （void）strats周期性检查；
+- （uiviewController *）findViewController：（uiview *）视图;
+- （void）装载；
+- （void）handlepan ：（ uipangeSturerocognizer *）手势;
+- （void）手机；
+- （void）手术：（uilongpressesturerecognizer *）手势;
+- （void）手机；
+- （void）手机振荡；
+- （void）handletouchupoutside;
+- （void）savelockstate;
+-  void）loadlocclockstate;
+@结尾
 // 全局变量
-static HideUIButton *hideButton;
-static BOOL isAppInTransition = NO;
-static NSArray *targetClassNames;
-static void findViewsOfClassHelper(UIView *view, Class viewClass, NSMutableArray *result) {
-	if ([view isKindOfClass:viewClass]) {
-		[result addObject:view];
+静态hideuibutton *hidebutton;
+静态bool iSappIntransition = no;
+静态NSARRAY *targetClassNames;
+静态void findviewsofclasshelper（uiview *view，class viewclass，nsmutablearray *结果）{
+	如果（[[View IskindofClass：ViewClass]）{
+		[结果AddObject：view];
 	}
-	for (UIView *subview in view.subviews) {
-		findViewsOfClassHelper(subview, viewClass, result);
+	对于vievie.subviews中的（uiview *subview）{
+		FindViewSofClassHelper（子视图，ViewClass，Result）;
 	}
 }
-static UIWindow *getKeyWindow(void) {
-	UIWindow *keyWindow = nil;
-	for (UIWindow *window in [UIApplication sharedApplication].windows) {
-		if (window.isKeyWindow) {
-			keyWindow = window;
-			break;
+静态uiwindow *getKeyWindow（void）{
+	uiwindow *keywindow = nil;
+	for（uiwindow *[uiapplication sharedApplication] .windows中的窗口）{
+		如果（window.iskeywindow）{
+			keywindow =窗口;
+			休息;
 		}
 	}
-	return keyWindow;
+	返回keywindow;
 }
-static void forceResetAllUIElements(void) {
-	UIWindow *window = getKeyWindow();
-	if (!window)
-		return;
-	for (NSString *className in targetClassNames) {
-		Class viewClass = NSClassFromString(className);
-		if (!viewClass)
-			continue;
-		NSMutableArray *views = [NSMutableArray array];
-		findViewsOfClassHelper(window, viewClass, views);
-		for (UIView *view in views) {
+静态void forceresetalluielement（void）{
+	uiwindow *window = getKeyWindow（（（）;
+	如果（！窗口）
+		返回;
+	对于（targetClassNames中的nsstring *className）{
+		类查看类= nsclassfromstring（className）;
+		如果（！view class）
+			继续;
+		nsmutablearray *views = [nsmutablearray array];
+		FindViewSofClassHelper （窗口，ViewClass，视图）；
+		for（uiview *在视图中查看）{
 			view.alpha = 1.0;
 		}
 	}
 }
-static void reapplyHidingToAllElements(HideUIButton *button) {
-	if (!button || !button.isElementsHidden)
-		return;
-	[button hideUIElements];
+静态无效的receplyHidingToleartes（hideuibutton *button）{
+	如果按钮||！按钮。
+		返回;
+	[按钮hideuielements]；
 }
-static void initTargetClassNames(void) {
+静态void InittargetClassNames（void）{
 	targetClassNames = @[
-		@"AWEHPTopBarCTAContainer", @"AWEHPDiscoverFeedEntranceView", @"AWELeftSideBarEntranceView", @"DUXBadge", @"AWEBaseElementView", @"AWEElementStackView",
-		@"AWEPlayInteractionDescriptionLabel", @"AWEUserNameLabel", @"AWEStoryProgressSlideView", @"AWEStoryProgressContainerView", @"ACCEditTagStickerView", @"AWEFeedTemplateAnchorView",
-		@"AWESearchFeedTagView", @"AWEPlayInteractionSearchAnchorView", @"AFDRecommendToFriendTagView", @"AWELandscapeFeedEntryView", @"AWEFeedAnchorContainerView", @"AFDAIbumFolioView"
+		@“ awehptopbarctacontainer”， @“ awehpdiscoverfeedentranceview”， @ @ @ @ @ @ @ @ @ @ @ @ @@duxbadge“点上
+		@“ AweplayInteractionDescriptionLabel”， @“ aweusernamelabel”， @ @“ awestoryprogressslideview”， @ @ @ @ @awestoryprogresscontainerview“， @ accedittagstickerview”
+		@“ awesearchfeedtagview”， @“ aweplayInteractionsearchanchorview”， @“ afdrecommendtofriendtagview”， @ @awelandscapefeedentryview“， @ @awefeedandanchorcontainerview”，“
 	];
 }
-@implementation HideUIButton
-- (instancetype)initWithFrame:(CGRect)frame {
-	self = [super initWithFrame:frame];
-	if (self) {
-		self.backgroundColor = [UIColor clearColor];
-		self.layer.cornerRadius = frame.size.width / 2;
-		self.layer.masksToBounds = YES;
+@Implementation hideuibutton
+- （InstanceType）initwithFrame ：（ cgrect）frame {
+	self = [super initwithframe：frame];
+	如果（self）{
+		self.backgroundColor = [uicolor clearColor];
+		self.layer.cornerradius = frame.size.width / 2;
+		self.layer.maskstobounds = yes;
 		self.isElementsHidden = NO;  // 默认显示
-		self.hiddenViewsList = [NSMutableArray array];
+		self.hidendviewSlist = [nsmutablearray array];
         
         // 设置默认状态为半透明
         self.originalAlpha = 0.8;  // 交互时为完全1.0不透明
         self.alpha = 0.8;  // 初始为半透明
 		// 加载保存的锁定状态
-		[self loadLockState];
-		[self loadIcons];
-		[self setImage:self.showIcon forState:UIControlStateNormal];
-		UIPanGestureRecognizer *panGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
-		[self addGestureRecognizer:panGesture];
-		[self addTarget:self action:@selector(handleTap) forControlEvents:UIControlEventTouchUpInside];
-		[self addTarget:self action:@selector(handleTouchDown) forControlEvents:UIControlEventTouchDown];
-		[self addTarget:self action:@selector(handleTouchUpInside) forControlEvents:UIControlEventTouchUpInside];
-		[self addTarget:self action:@selector(handleTouchUpOutside) forControlEvents:UIControlEventTouchUpOutside];
+		[self loadlockstate];
+		[自装载]；
+		[自我设定：self.showicon forstate：uicontrolstatenormal];
+		uipangeSturerecognizer *pangeSture = [[uipangeSturerecognizer sloc] initwithtarget：self Action：@selector（handlepan :)];
+		[self addgesturer识别器：pangesture]；
+		[self addtarget：自我动作：@selector（handletap）forcontrolevents：uicontroleventtouchupinside];
+		[self addtarget：自我动作：@selector（Handletouchdown）forcontrolevents：uicontroleventTouchDown];
+		[self addtarget：自我动作：@selector（Handletouchupinside）forcontrolevents：uicontroleventtouchupinside];
+		[self addtarget：自我动作：@selector（Handletouchupoutside）forcontrolevents：uicontroleventTouchupoutside];
 		// 添加长按手势（长按时间为2秒）
-		UILongPressGestureRecognizer *longPressGesture = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleLongPress:)];
+		uilongPressEntureRecognizer *longPressEsture = [[[UilongPressEntureRecognizer sloc] initwithtarget：自我动作：@selector（handlelongpress :)];
 		longPressGesture.minimumPressDuration = 2.0;  // 设置2秒长按
-		[self addGestureRecognizer:longPressGesture];
-		[self startPeriodicCheck];
-		[self resetFadeTimer];
+		[自我添加剂识别器：longpressgesture]；
+		[self startperiodiccheck]；
+		[self Resetfadetimer]；
         
         // 初始状态下隐藏按钮，直到进入正确的控制器
-        self.hidden = YES;
+        self.hidden = yes;
 	}
-	return self;
+	返回自我；
 }
-- (void)startPeriodicCheck {
-	[self.checkTimer invalidate];
-	self.checkTimer = [NSTimer scheduledTimerWithTimeInterval:0.2
-							  repeats:YES
-							    block:^(NSTimer *timer) {
-							      if (self.isElementsHidden) {
-								      [self hideUIElements];
+- （void）stratperiodiccheck {
+	[self.checktimer无效];
+	self.chachimermimer = [nsstimer shedulledtimewithtintervother：0.2
+							  重复：是的
+							    块：^（nstimer *timer）{
+							      如果（self.iselementshidded）{
+								      [自我隐藏]；
 							      }
 							    }];
 }
-- (void)resetFadeTimer {
-	[self.fadeTimer invalidate];
-	self.fadeTimer = [NSTimer scheduledTimerWithTimeInterval:3.0
+- （void）resetfadetimer {
+	[self.fadetimer无效]；
+	self.fadetimer = [NSTIMER STENDULEDTIMERWITHTIME INTERVAL：3.0
 							 repeats:NO
 							   block:^(NSTimer *timer) {
 							     [UIView animateWithDuration:0.3
@@ -162,9 +162,9 @@ static void initTargetClassNames(void) {
 	self.isLocked = [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYHideUIButtonLockState"];
 }
 - (void)loadIcons {
-    NSString *documentsPath = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
-    NSString *iconPath = [documentsPath stringByAppendingPathComponent:@"DYYY/qingping.gif"];
-    NSData *gifData = [NSData dataWithContentsOfFile:iconPath];
+    nsString *documentspath = nssearchpathfordirectoriesIndomains（nsdocumentDirectory，nsuserdomainmask，yes）.firstObject;
+    nsString *iconpath = [documentspath stringbyAppendingPathComponent：@“ dyyy/qingpate.gif”];
+    nsdata *gifdata = [nsdata datawithContentsOffile：iconPath];
     
     if (gifData) {
         CGImageSourceRef source = CGImageSourceCreateWithData((__bridge CFDataRef)gifData, NULL);
@@ -177,86 +177,86 @@ static void initTargetClassNames(void) {
             CGImageRef imageRef = CGImageSourceCreateImageAtIndex(source, i, NULL);
             UIImage *image = [UIImage imageWithCGImage:imageRef];
             [imageArray addObject:image];
-            CFRelease(imageRef);
+            cfrelease（imageref）;
             
             // 获取当前帧的属性
-            CFDictionaryRef properties = CGImageSourceCopyPropertiesAtIndex(source, i, NULL);
-            if (properties) {
+            cfdictionaryref属性= cgimagesourcecopypropertiesatindex（源，i，null）;
+            if（properties）{
                 // 进行类型转换
-                CFDictionaryRef gifProperties = (CFDictionaryRef)CFDictionaryGetValue(properties, kCGImagePropertyGIFDictionary);
-                if (gifProperties) {
+                cfdictionaryref gifproperties =（cfdictionaryref）cfdictionarygetValue（属性，kcgimagepropertygifdictionary）;
+                如果（gifproperties）{
                     // 尝试获取未限制的延迟时间，如果没有则获取常规延迟时间
-                    NSNumber *frameDuration = (__bridge NSNumber *)CFDictionaryGetValue(gifProperties, kCGImagePropertyGIFUnclampedDelayTime);
-                    if (!frameDuration) {
-                        frameDuration = (__bridge NSNumber *)CFDictionaryGetValue(gifProperties, kCGImagePropertyGIFDelayTime);
+                    nsnumber *frameAmeration =（__ bridge nsnumber *）cfdictionarygetValue（gifproperties，kcgimagepropertygifungunclampeddelaytime）;
+                    如果（！
+                        frameAmenation =（__ bridge nsnumber *）cfdictionarygetValue（gifproperties，kcgimagepropertygifdelaytime）;
                     }
-                    if (frameDuration) {
-                        totalDuration += frameDuration.doubleValue;
+                    如果（框架）{
+                        总绘制 += frameduration.doubleValue;
                     }
                 }
-                CFRelease(properties);
+                cfrelease（属性）;
             }
         }
-        CFRelease(source);
+        CFREALE（来源）;
         
         // 创建一个UIImageView并设置动画图像
-        UIImageView *animatedImageView = [[UIImageView alloc] initWithFrame:self.bounds];
-        animatedImageView.animationImages = imageArray;
+        uiimageView *andimageView = [[uiimageView alloc] initwithframe：self.bounds];
+        AnimatedImageView.AnimationImages = ImageArray;
         
         // 设置动画持续时间为所有帧延迟时间的总和
-        animatedImageView.animationDuration = totalDuration;
+        AnimatedImageView.AnimationDuration = TotalDuration;
         animatedImageView.animationRepeatCount = 0; // 无限循环
-        [self addSubview:animatedImageView];
+        [self addsubview：animatedImageView];
         
         // 调整约束或布局（如果需要）
-        animatedImageView.translatesAutoresizingMaskIntoConstraints = NO;
-        [NSLayoutConstraint activateConstraints:@[
-            [animatedImageView.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
-            [animatedImageView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
-            [animatedImageView.widthAnchor constraintEqualToAnchor:self.widthAnchor],
-            [animatedImageView.heightAnchor constraintEqualToAnchor:self.heightAnchor]
+        AnimatedImageView.translatesautoresizingmaskIntoconstraints = no;
+        [nslayoutconstraint activatectraints：@[
+            [AnimatedImageView.CenterXanchor CondertaintEqualToanchor：self.centerxanchor]，，，
+            [AnimatedImageView.Centeryanchor constraintequaltoanchor：self.centeryanchor]，
+            [AnimatedImageView.Widthanchor会议Effaintequalaltoanchor：self.widthanchor]，，
+            [AnimatedImageView.Heightanchor约束Equaraintequaltoanchor：self.heightanchor]
         ]];
         
-        [animatedImageView startAnimating];
-    } else {
-        [self setTitle:@"🤡" forState:UIControlStateNormal];
-        [self setTitle:@"🤡" forState:UIControlStateSelected];
-        self.titleLabel.font = [UIFont systemFontOfSize:25];
+        [AnimatedImageView startAnimating]；
+    } 别的 {
+        [自我设置：@“隐藏” forstate：uicontrolstatenormal];
+        [自我设置：@“显示” forstate：uicontrolStatesElectected];
+        self.titlelabel.font = [Uifont SystemFontoFsize：10];
     }
 }
-- (void)handleTouchDown {
+- （void）手点{
 	[self resetFadeTimer];  // 这会使按钮变为完全不透明
 }
-- (void)handleTouchUpInside {
+- （void）handletouchupinside {
 	[self resetFadeTimer];  // 这会使按钮变为完全不透明
 }
-- (void)handleTouchUpOutside {
+- （void）handletouchupoutside {
 	[self resetFadeTimer];  // 这会使按钮变为完全不透明
 }
-- (UIViewController *)findViewController:(UIView *)view {
-	__weak UIResponder *responder = view;
-	while (responder) {
-		if ([responder isKindOfClass:[UIViewController class]]) {
-			return (UIViewController *)responder;
+- （uiviewController *）findViewController：（uiview *）查看{
+	__弱uiresponder *responder = view;
+	而（响应者）{
+		if（[[响应者iskindofClass：[uiviewController class]]）{
+			返回（uiviewController *）响应者;
 		}
-		responder = [responder nextResponder];
-		if (!responder)
-			break;
+		回复= [答案下一个通行证];
+		如果（！响应者）
+			休息;
 	}
-	return nil;
+	返回零；
 }
-- (void)handlePan:(UIPanGestureRecognizer *)gesture {
-	if (self.isLocked)
-		return;
+- （void）handingpan ：（ uipangeSturerecognizer *）手势{
+	如果（self.iscobsed）
+		返回;
 	[self resetFadeTimer];  // 这会使按钮变为完全不透明
-	CGPoint translation = [gesture translationInView:self.superview];
-	CGPoint newCenter = CGPointMake(self.center.x + translation.x, self.center.y + translation.y);
-	newCenter.x = MAX(self.frame.size.width / 2, MIN(newCenter.x, self.superview.frame.size.width - self.frame.size.width / 2));
-	newCenter.y = MAX(self.frame.size.height / 2, MIN(newCenter.y, self.superview.frame.size.height - self.frame.size.height / 2));
-	self.center = newCenter;
-	[gesture setTranslation:CGPointZero inView:self.superview];
-	if (gesture.state == UIGestureRecognizerStateEnded) {
-		[[NSUserDefaults standardUserDefaults] setObject:NSStringFromCGPoint(self.center) forKey:@"DYYYHideUIButtonPosition"];
+	cgpoint translation = [手势translationInview：self.superview];
+	cgpoint newCenter = cgpointmake（self.center.x + translation.x，self.center.y + translation.y（y）;
+	newcenter.x = max（self.frame.size.width / 2，min（newcenter.x，self.superview.frame.frame.frame.frame.size.width-frame.frame.frame.frame.frame.size.size.width / 2（2））;
+	newcenter.y = max（self.frame.size.size.height / 2，min（newcenter.y，self.superview.frame.frame.frame.frame.size.size.size.height-self.frame.frame.frame.size.size.size.size.size.height / 2）
+	self.center =新中心;
+	[手势setTranslation：cgpointzero inview：self.superview];
+	如果（
+		[[NSUSERDEFAULTS StandardUserDefaults] setObject：nsstringfromcgpoint（self.center）forkey：@“ dyyyhideuibuttonposition”];
 		[[NSUserDefaults standardUserDefaults] synchronize];
 	}
 }
