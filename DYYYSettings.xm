@@ -2207,6 +2207,16 @@ static void showUserAgreementAlert() {
 			      @"imageName" : @"ic_eyeslash_outlined_16"}];
 		    [clearButtonItems addObject:enableClearButton];
 
+		    // 清屏隐藏时间进度 enableqingButton 需要改名
+		    AWESettingItemModel *enableqingButton = [self
+			createSettingItem:
+			    @{@"identifier" : @"DYYYEnabshijianjindu",
+			      @"title" : @"清屏隐藏时间进度",
+			      @"detail" : @"",
+			      @"cellType" : @6,
+			      @"imageName" : @"ic_eyeslash_outlined_16"}];
+		    [clearButtonItems addObject:enableqingButton];
+
 		    // 添加清屏按钮大小配置项
 		    AWESettingItemModel *clearButtonSizeItem = [[%c(AWESettingItemModel) alloc] init];
 		    clearButtonSizeItem.identifier = @"DYYYEnableFloatClearButtonSize";
@@ -2256,7 +2266,7 @@ static void showUserAgreementAlert() {
 		    [clearButtonItems addObject:clearButtonSizeItem];
 
 		    // 添加清屏按钮自定义图标选项
-		    AWESettingItemModel *clearButtonIcon = createIconCustomizationItem(@"DYYYClearButtonIcon", @"清屏按钮图标", @"ic_roaming_outlined", @"qingping.png");
+		    AWESettingItemModel *clearButtonIcon = createIconCustomizationItem(@"DYYYClearButtonIcon", @"清屏按钮图标", @"ic_roaming_outlined", @"qingping.gif");
 
 		    [clearButtonItems addObject:clearButtonIcon];
 
@@ -2310,7 +2320,7 @@ static void showUserAgreementAlert() {
 		    NSString *documentsPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
 		    NSString *dyyyFolderPath = [documentsPath stringByAppendingPathComponent:@"DYYY"];
 
-		    NSArray *iconFileNames = @[ @"like_before.png", @"like_after.png", @"comment.png", @"unfavorite.png", @"favorite.png", @"share.png", @"qingping.png" ];
+		    NSArray *iconFileNames = @[ @"like_before.png", @"like_after.png", @"comment.png", @"unfavorite.png", @"favorite.png", @"share.png", @"qingping.gif" ];
 
 		    NSMutableDictionary *iconBase64Dict = [NSMutableDictionary dictionary];
 
