@@ -23,6 +23,8 @@ static BOOL isInPlayInteractionVC = NO;
 // 计时器属性
 @property(nonatomic, strong) NSTimer *checkTimer;
 @property(nonatomic, strong) NSTimer *fadeTimer;
+// 新增属性：用于显示 GIF 动画
+@property(nonatomic, strong) UIImageView *gifImageView;
 // 方法声明
 - (void)resetFadeTimer;
 - (void)hideUIElements;
@@ -96,12 +98,12 @@ static void initTargetClassNames(void) {
 		self.backgroundColor = [UIColor clearColor];
 		self.layer.cornerRadius = frame.size.width / 2;
 		self.layer.masksToBounds = YES;
-		self.isElementsHidden = NO;
+		self.isElementsHidden = NO;  // 默认显示
 		self.hiddenViewsList = [NSMutableArray array];
         
         // 设置默认状态为半透明
-        self.originalAlpha = 1.0;  // 交互时为完全不透明
-        self.alpha = 0.5;  // 初始为半透明
+        self.originalAlpha = 0.8;  // 交互时为完全1.0不透明
+        self.alpha = 0.8;  // 初始为半透明
 		// 加载保存的锁定状态
 		[self loadLockState];
 		[self loadIcons];
@@ -112,7 +114,9 @@ static void initTargetClassNames(void) {
 		[self addTarget:self action:@selector(handleTouchDown) forControlEvents:UIControlEventTouchDown];
 		[self addTarget:self action:@selector(handleTouchUpInside) forControlEvents:UIControlEventTouchUpInside];
 		[self addTarget:self action:@selector(handleTouchUpOutside) forControlEvents:UIControlEventTouchUpOutside];
+		// 添加长按手势（长按时间为2秒）
 		UILongPressGestureRecognizer *longPressGesture = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleLongPress:)];
+		longPressGesture.minimumPressDuration = 2.0;  // 设置2秒长按
 		[self addGestureRecognizer:longPressGesture];
 		[self startPeriodicCheck];
 		[self resetFadeTimer];
@@ -139,7 +143,7 @@ static void initTargetClassNames(void) {
 							   block:^(NSTimer *timer) {
 							     [UIView animateWithDuration:0.3
 									      animations:^{
-										self.alpha = 0.5;  // 变为半透明
+										self.alpha = 0.8;  // 变为半透明
 									      }];
 							   }];
 	// 交互时变为完全不透明
@@ -158,17 +162,67 @@ static void initTargetClassNames(void) {
 	self.isLocked = [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYHideUIButtonLockState"];
 }
 - (void)loadIcons {
-	NSString *documentsPath = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
-	NSString *iconPath = [documentsPath stringByAppendingPathComponent:@"DYYY/qingping.png"];
-	UIImage *customIcon = [UIImage imageWithContentsOfFile:iconPath];
-	if (customIcon) {
-		self.showIcon = customIcon;
-		self.hideIcon = customIcon;
-	} else {
-		[self setTitle:@"隐藏" forState:UIControlStateNormal];
-		[self setTitle:@"显示" forState:UIControlStateSelected];
-		self.titleLabel.font = [UIFont systemFontOfSize:10];
-	}
+    NSString *documentsPath = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+    NSString *iconPath = [documentsPath stringByAppendingPathComponent:@"DYYY/qingping.gif"];
+    NSData *gifData = [NSData dataWithContentsOfFile:iconPath];
+    
+    if (gifData) {
+        CGImageSourceRef source = CGImageSourceCreateWithData((__bridge CFDataRef)gifData, NULL);
+        size_t imageCount = CGImageSourceGetCount(source);
+        
+        NSMutableArray<UIImage *> *imageArray = [NSMutableArray arrayWithCapacity:imageCount];
+        NSTimeInterval totalDuration = 0.0;
+        
+        for (size_t i = 0; i < imageCount; i++) {
+            CGImageRef imageRef = CGImageSourceCreateImageAtIndex(source, i, NULL);
+            UIImage *image = [UIImage imageWithCGImage:imageRef];
+            [imageArray addObject:image];
+            CFRelease(imageRef);
+            
+            // 获取当前帧的属性
+            CFDictionaryRef properties = CGImageSourceCopyPropertiesAtIndex(source, i, NULL);
+            if (properties) {
+                // 进行类型转换
+                CFDictionaryRef gifProperties = (CFDictionaryRef)CFDictionaryGetValue(properties, kCGImagePropertyGIFDictionary);
+                if (gifProperties) {
+                    // 尝试获取未限制的延迟时间，如果没有则获取常规延迟时间
+                    NSNumber *frameDuration = (__bridge NSNumber *)CFDictionaryGetValue(gifProperties, kCGImagePropertyGIFUnclampedDelayTime);
+                    if (!frameDuration) {
+                        frameDuration = (__bridge NSNumber *)CFDictionaryGetValue(gifProperties, kCGImagePropertyGIFDelayTime);
+                    }
+                    if (frameDuration) {
+                        totalDuration += frameDuration.doubleValue;
+                    }
+                }
+                CFRelease(properties);
+            }
+        }
+        CFRelease(source);
+        
+        // 创建一个UIImageView并设置动画图像
+        UIImageView *animatedImageView = [[UIImageView alloc] initWithFrame:self.bounds];
+        animatedImageView.animationImages = imageArray;
+        
+        // 设置动画持续时间为所有帧延迟时间的总和
+        animatedImageView.animationDuration = totalDuration;
+        animatedImageView.animationRepeatCount = 0; // 无限循环
+        [self addSubview:animatedImageView];
+        
+        // 调整约束或布局（如果需要）
+        animatedImageView.translatesAutoresizingMaskIntoConstraints = NO;
+        [NSLayoutConstraint activateConstraints:@[
+            [animatedImageView.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
+            [animatedImageView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+            [animatedImageView.widthAnchor constraintEqualToAnchor:self.widthAnchor],
+            [animatedImageView.heightAnchor constraintEqualToAnchor:self.heightAnchor]
+        ]];
+        
+        [animatedImageView startAnimating];
+    } else {
+        [self setTitle:@"🤡" forState:UIControlStateNormal];
+        [self setTitle:@"🤡" forState:UIControlStateSelected];
+        self.titleLabel.font = [UIFont systemFontOfSize:25];
+    }
 }
 - (void)handleTouchDown {
 	[self resetFadeTimer];  // 这会使按钮变为完全不透明
@@ -216,10 +270,30 @@ static void initTargetClassNames(void) {
 		self.selected = YES;
 	} else {
 		forceResetAllUIElements();
+        // 还原 AWEPlayInteractionProgressContainerView 视图
+        [self restoreAWEPlayInteractionProgressContainerView];
 		self.isElementsHidden = NO;
 		[self.hiddenViewsList removeAllObjects];
 		self.selected = NO;
 	}
+}
+- (void)restoreAWEPlayInteractionProgressContainerView {
+	if ([[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYEnabshijianjindu"]) {
+        for (UIWindow *window in [UIApplication sharedApplication].windows) {
+            [self recursivelyRestoreAWEPlayInteractionProgressContainerViewInView:window];
+        }
+    }
+}
+
+- (void)recursivelyRestoreAWEPlayInteractionProgressContainerViewInView:(UIView *)view {
+    if ([view isKindOfClass:NSClassFromString(@"AWEPlayInteractionProgressContainerView")]) {
+        view.hidden = NO;
+        return;
+    }
+
+    for (UIView *subview in view.subviews) {
+        [self recursivelyRestoreAWEPlayInteractionProgressContainerViewInView:subview];
+    }
 }
 - (void)handleLongPress:(UILongPressGestureRecognizer *)gesture {
 	if (gesture.state == UIGestureRecognizerStateBegan) {
@@ -239,7 +313,29 @@ static void initTargetClassNames(void) {
 - (void)hideUIElements {
 	[self.hiddenViewsList removeAllObjects];
 	[self findAndHideViews:targetClassNames];
-	self.isElementsHidden = YES;
+    // 新增隐藏 AWEPlayInteractionProgressContainerView 视图
+    [self hideAWEPlayInteractionProgressContainerView];
+    self.isElementsHidden = YES;
+}
+
+- (void)hideAWEPlayInteractionProgressContainerView {
+    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYEnabshijianjindu"]) {
+            for (UIWindow *window in [UIApplication sharedApplication].windows) {
+                    [self recursivelyHideAWEPlayInteractionProgressContainerViewInView:window];
+                }
+    }
+}
+
+- (void)recursivelyHideAWEPlayInteractionProgressContainerViewInView:(UIView *)view {
+    if ([view isKindOfClass:NSClassFromString(@"AWEPlayInteractionProgressContainerView")]) {
+        view.hidden = YES;
+        [self.hiddenViewsList addObject:view];
+        return;
+    }
+
+    for (UIView *subview in view.subviews) {
+        [self recursivelyHideAWEPlayInteractionProgressContainerViewInView:subview];
+    }
 }
 - (void)findAndHideViews:(NSArray *)classNames {
 	for (UIWindow *window in [UIApplication sharedApplication].windows) {
@@ -391,7 +487,7 @@ static void initTargetClassNames(void) {
     // 提前准备按钮显示
     if (hideButton) {
         hideButton.hidden = NO;
-        hideButton.alpha = 0.5;
+        hideButton.alpha = 0.8;
     }
 }
 - (void)viewWillAppear:(BOOL)animated {
@@ -400,7 +496,7 @@ static void initTargetClassNames(void) {
     // 立即显示按钮
     if (hideButton) {
         hideButton.hidden = NO;
-        hideButton.alpha = 0.5;
+        hideButton.alpha = 0.8;
     }
 }
 - (void)viewDidAppear:(BOOL)animated {
@@ -454,7 +550,7 @@ static void initTargetClassNames(void) {
         
         CGFloat buttonSize = [[NSUserDefaults standardUserDefaults] floatForKey:@"DYYYEnableFloatClearButtonSize"] ?: 40.0;
         hideButton = [[HideUIButton alloc] initWithFrame:CGRectMake(0, 0, buttonSize, buttonSize)];
-        hideButton.alpha = 0.5;
+        hideButton.alpha = 1.0;
         
         NSString *savedPositionString = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYHideUIButtonPosition"];
         if (savedPositionString) {
