@@ -123,25 +123,17 @@
 }
 + (void)reconcileDetailPaging:(UIViewController *)controller {
     if (![NSThread isMainThread] || !DYYYGetBool(@"DYYYEnableFullScreen") || ![self usesDetailLayoutForController:controller]) return;
-    if (![controller respondsToSelector:@selector(tableView)] || ![controller respondsToSelector:@selector(currentVisibleCellIndex)] ||
-        ![controller respondsToSelector:@selector(updateTableViewLayoutForTargetPageIndex:)]) return;
+    if (![controller respondsToSelector:@selector(tableView)] || ![controller respondsToSelector:@selector(currentVisibleCellIndex)]) return;
     AWEAwemeDetailTableViewController *detail = (AWEAwemeDetailTableViewController *)controller;
     UITableView *table = [detail tableView];
     CGFloat height = table.bounds.size.height;
     if (!table.window || height <= 0 || table.bounds.size.width <= 0 || [self hasCommentInWindow:table.window] ||
         table.tracking || table.dragging || table.decelerating || table.numberOfSections != 1) return;
 
-    // 首次出现保护：contentOffset 还在初始位置（y≈0）时，检查 currentVisibleCellIndex 是否也为 0。
-    // 如果 offset≈0 且 index>0，说明抖音原生还没应用 initialIndex 滚到目标视频，跳过让原生先定位。
-    // 如果 offset≈0 且 index==0，那就是 index=0 的情况（内容一致），可以继续执行行高调整。
+    // 首次出现保护：contentOffset 还在初始位置时跳过，让原生先应用 initialIndex 完成首次定位。
+    // DYYY 的 heightForDetailRow: 会动态提供正确的全屏行高，不需要在这里强行 beginUpdates 重算。
     CGPoint offset = table.contentOffset;
-    if (fabs(offset.y) < 2.0) {
-        // offset 接近 0 时，先拿 index 来判断是否是 index=0 的正常情况
-        if ([controller respondsToSelector:@selector(currentVisibleCellIndex)]) {
-            NSUInteger index0 = [detail currentVisibleCellIndex];
-            if (index0 > 0) return; // 还没滚到目标位置，跳过
-        }
-    }
+    if (fabs(offset.y) < 2.0) return;
 
     DYYYFullscreenPlayerState *state = objc_getAssociatedObject(table, @selector(state:));
     if (state.applying) return;
@@ -152,23 +144,14 @@
     NSIndexPath *lastIndex = [NSIndexPath indexPathForRow:count - 1 inSection:0];
     CGRect first = [table rectForRowAtIndexPath:firstIndex];
     CGRect last = [table rectForRowAtIndexPath:lastIndex];
+
+    // 如果所有行高 + 分页步长已经是全屏高度，说明行高缓存已正确，跳过。
     if (fabs(first.size.height - height) < 0.5 && fabs(last.size.height - height) < 0.5 &&
         fabs(CGRectGetMinY(last) - CGRectGetMinY(first) - (count - 1) * height) < 0.5) return;
-    if (![detail respondsToSelector:@selector(tableView:heightForRowAtIndexPath:)] ||
-        fabs([detail tableView:table heightForRowAtIndexPath:firstIndex] - height) > 0.5 ||
-        fabs([detail tableView:table heightForRowAtIndexPath:lastIndex] - height) > 0.5) return;
-    state = [self state:table];
-    state.applying = YES;
-    @try {
-        [UIView performWithoutAnimation:^{
-            [table beginUpdates];
-            [table endUpdates];
-            [detail updateTableViewLayoutForTargetPageIndex:(NSInteger)index];
-            [table layoutIfNeeded];
-        }];
-    } @finally {
-        state.applying = NO;
-    }
+
+    // 行高不一致：让 heightForDetailRow: 动态提供正确值，下一次滚动就会生效。
+    // 不再调用 beginUpdates/endUpdates（会卡顿）或 updateTableViewLayoutForTargetPageIndex:
+    // （会强制跳页打断刚启动的播放器）。原生已经正确定位，DYYY 只负责提供正确的行高。
 }
 + (void)layoutBottomBar:(UIView *)bar controller:(UIViewController *)controller enabled:(BOOL)enabled {
     DYYYFullscreenPlayerState *state = [self state:bar];
