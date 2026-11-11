@@ -104,8 +104,8 @@ jobs:
           set -euo pipefail
           THEOS_DIR="${{ github.workspace }}/theos"
           if [ ! -d "$THEOS_DIR/toolchain" ]; then
-            echo "Cloning Theos..."
-            git clone --depth 1 https://github.com/roothide/theos "$THEOS_DIR"
+            echo "Cloning Theos with submodules (dm.pl, orion, logos...)"
+            git clone --depth 1 --recurse-submodules -j8 https://github.com/roothide/theos "$THEOS_DIR"
           fi
           if [ ! -d "$THEOS_DIR/sdks" ]; then
             echo "Cloning SDKs..."
@@ -113,6 +113,8 @@ jobs:
           fi
           echo "THEOS=$THEOS_DIR" >> $GITHUB_ENV
           echo "$THEOS_DIR/bin" >> $GITHUB_PATH
+          # 验证关键工具
+          ls -la "$THEOS_DIR/vendor/dm.pl/dm.pl" || ls -la "$THEOS_DIR/bin/dm.pl" || echo "WARNING: dm.pl not found!"
 
       - name: Install ldid via Homebrew
         run: brew install ldid xz
