@@ -8246,15 +8246,11 @@ static NSHashTable *processedParentViews = nil;
     %orig(filtered);
 }
 
+// getter 只读返回，绝不在 getter 中 setArray 修改原始数组。
+// 否则 Feed 初始化过程中多次调用 dataSource getter 会导致数组被反复重建，
+// 使 initialIndex 与实际内容错位（点 A 开 B），甚至越界闪退。
 - (NSMutableArray *)dataSource {
-    NSMutableArray *dataSource = %orig;
-    NSArray *filtered = [DYYYUtils arrayByRemovingAdvertisements:dataSource];
-    if (filtered != dataSource && [dataSource isKindOfClass:[NSMutableArray class]]) {
-        [dataSource setArray:filtered];
-    } else if (filtered != dataSource) {
-        return [filtered mutableCopy];
-    }
-    return dataSource;
+    return %orig;
 }
 
 - (void)setFilteredDataSource:(NSMutableArray *)filteredDataSource {
@@ -8263,14 +8259,7 @@ static NSHashTable *processedParentViews = nil;
 }
 
 - (NSMutableArray *)filteredDataSource {
-    NSMutableArray *filteredDataSource = %orig;
-    NSArray *filtered = [DYYYUtils arrayByRemovingAdvertisements:filteredDataSource];
-    if (filtered != filteredDataSource && [filteredDataSource isKindOfClass:[NSMutableArray class]]) {
-        [filteredDataSource setArray:filtered];
-    } else if (filtered != filteredDataSource) {
-        return [filtered mutableCopy];
-    }
-    return filteredDataSource;
+    return %orig;
 }
 
 %end
@@ -8282,15 +8271,9 @@ static NSHashTable *processedParentViews = nil;
     %orig(filtered);
 }
 
+// getter 只读返回，不在 getter 中修改原始数组（同 AWEListDataController 修复原因）
 - (id)dataSource {
-    id dataSource = %orig;
-    NSArray *filtered = [DYYYUtils arrayByRemovingAdvertisements:dataSource];
-    if (filtered != dataSource && [dataSource isKindOfClass:[NSMutableArray class]]) {
-        [dataSource setArray:filtered];
-    } else if (filtered != dataSource) {
-        return filtered;
-    }
-    return dataSource;
+    return %orig;
 }
 
 %end
@@ -8311,15 +8294,9 @@ static NSHashTable *processedParentViews = nil;
     %orig(filtered);
 }
 
+// getter 只读返回，不在 getter 中修改原始数组（同 AWEListDataController 修复原因）
 - (id)dataSource {
-    id dataSource = %orig;
-    NSArray *filtered = [DYYYUtils arrayByRemovingAdvertisements:dataSource];
-    if (filtered != dataSource && [dataSource isKindOfClass:[NSMutableArray class]]) {
-        [dataSource setArray:filtered];
-    } else if (filtered != dataSource) {
-        return filtered;
-    }
-    return dataSource;
+    return %orig;
 }
 
 %end
