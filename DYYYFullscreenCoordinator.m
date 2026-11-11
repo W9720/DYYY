@@ -130,6 +130,19 @@
     CGFloat height = table.bounds.size.height;
     if (!table.window || height <= 0 || table.bounds.size.width <= 0 || [self hasCommentInWindow:table.window] ||
         table.tracking || table.dragging || table.decelerating || table.numberOfSections != 1) return;
+
+    // 首次出现保护：contentOffset 还在初始位置（y≈0）时，检查 currentVisibleCellIndex 是否也为 0。
+    // 如果 offset≈0 且 index>0，说明抖音原生还没应用 initialIndex 滚到目标视频，跳过让原生先定位。
+    // 如果 offset≈0 且 index==0，那就是 index=0 的情况（内容一致），可以继续执行行高调整。
+    CGPoint offset = table.contentOffset;
+    if (fabs(offset.y) < 2.0) {
+        // offset 接近 0 时，先拿 index 来判断是否是 index=0 的正常情况
+        if ([controller respondsToSelector:@selector(currentVisibleCellIndex)]) {
+            NSUInteger index0 = [detail currentVisibleCellIndex];
+            if (index0 > 0) return; // 还没滚到目标位置，跳过
+        }
+    }
+
     DYYYFullscreenPlayerState *state = objc_getAssociatedObject(table, @selector(state:));
     if (state.applying) return;
     NSInteger count = [table numberOfRowsInSection:0];
@@ -147,8 +160,6 @@
     state = [self state:table];
     state.applying = YES;
     @try {
-        // 早期数据源可能已缓存带输入栏占位的行高；只改视口不会清除这些缓存。
-        // 批量更新重新询问原生行高，随后按同一个视频索引恢复原生分页偏移。
         [UIView performWithoutAnimation:^{
             [table beginUpdates];
             [table endUpdates];
