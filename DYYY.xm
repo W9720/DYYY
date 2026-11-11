@@ -8241,21 +8241,22 @@ static NSHashTable *processedParentViews = nil;
 
 %hook AWEListDataController
 
+// setDataSource 绝对不能过滤数组！
+// 过滤会在 Feed 根据 initialIndex 选中第一个播放视频之前修改数组长度，
+// 导致 initialIndex 指向过滤后的错误位置（点 A 开 B + 后续闪退）。
+// 广告/HDR/直播等过滤统一留在：
+//   1) AWEAwemeModel.initWithDictionary: 返回 nil（数据源头过滤）
+//   2) transferAwemeListIfNeededWithArray:isInitFetch:（Feed 初始化后二次调整）
 - (void)setDataSource:(NSMutableArray *)dataSource {
-    NSArray *filtered = [DYYYUtils arrayByRemovingAdvertisements:dataSource];
-    %orig(filtered);
+    %orig(dataSource);
 }
 
-// getter 只读返回，绝不在 getter 中 setArray 修改原始数组。
-// 否则 Feed 初始化过程中多次调用 dataSource getter 会导致数组被反复重建，
-// 使 initialIndex 与实际内容错位（点 A 开 B），甚至越界闪退。
 - (NSMutableArray *)dataSource {
     return %orig;
 }
 
 - (void)setFilteredDataSource:(NSMutableArray *)filteredDataSource {
-    NSArray *filtered = [DYYYUtils arrayByRemovingAdvertisements:filteredDataSource];
-    %orig(filtered);
+    %orig(filteredDataSource);
 }
 
 - (NSMutableArray *)filteredDataSource {
@@ -8267,11 +8268,9 @@ static NSHashTable *processedParentViews = nil;
 %hook AWEMixVideoListDataController
 
 - (void)setDataSource:(id)dataSource {
-    NSArray *filtered = [DYYYUtils arrayByRemovingAdvertisements:dataSource];
-    %orig(filtered);
+    %orig(dataSource);
 }
 
-// getter 只读返回，不在 getter 中修改原始数组（同 AWEListDataController 修复原因）
 - (id)dataSource {
     return %orig;
 }
@@ -8281,8 +8280,7 @@ static NSHashTable *processedParentViews = nil;
 %hook AWEMixVideoDetailPlayListDataController
 
 - (void)setDataSource:(id)dataSource {
-    NSArray *filtered = [DYYYUtils arrayByRemovingAdvertisements:dataSource];
-    %orig(filtered);
+    %orig(dataSource);
 }
 
 %end
@@ -8290,11 +8288,9 @@ static NSHashTable *processedParentViews = nil;
 %hook AWEMixVideoRelatedListDataController
 
 - (void)setDataSource:(id)dataSource {
-    NSArray *filtered = [DYYYUtils arrayByRemovingAdvertisements:dataSource];
-    %orig(filtered);
+    %orig(dataSource);
 }
 
-// getter 只读返回，不在 getter 中修改原始数组（同 AWEListDataController 修复原因）
 - (id)dataSource {
     return %orig;
 }
