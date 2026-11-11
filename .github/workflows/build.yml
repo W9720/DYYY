@@ -104,17 +104,12 @@ jobs:
           set -euo pipefail
           THEOS_DIR="${{ github.workspace }}/theos"
           if [ ! -d "$THEOS_DIR/toolchain" ]; then
-            echo "Cloning Theos..."
-            git clone --depth 1 https://github.com/roothide/theos "$THEOS_DIR"
+            echo "Cloning Theos with submodules..."
+            git clone --depth 1 --recurse-submodules -j8 https://github.com/roothide/theos "$THEOS_DIR"
           fi
           if [ ! -d "$THEOS_DIR/sdks" ]; then
             echo "Cloning SDKs..."
             git clone --depth 1 https://github.com/theos/sdks "$THEOS_DIR/sdks"
-          fi
-          if [ ! -d "$THEOS_DIR/vendor/ldid" ]; then
-            echo "Cloning ldid..."
-            mkdir -p "$THEOS_DIR/vendor"
-            git clone --depth 1 https://github.com/theos/ldid "$THEOS_DIR/vendor/ldid"
           fi
           echo "THEOS=$THEOS_DIR" >> $GITHUB_ENV
           echo "$THEOS_DIR/bin" >> $GITHUB_PATH
