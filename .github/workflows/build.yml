@@ -104,15 +104,23 @@ jobs:
           set -euo pipefail
           THEOS_DIR="${{ github.workspace }}/theos"
           if [ ! -d "$THEOS_DIR/toolchain" ]; then
-            echo "Cloning Theos with submodules..."
-            git clone --depth 1 --recurse-submodules -j8 https://github.com/roothide/theos "$THEOS_DIR"
+            echo "Cloning Theos..."
+            git clone --depth 1 https://github.com/roothide/theos "$THEOS_DIR"
           fi
           if [ ! -d "$THEOS_DIR/sdks" ]; then
             echo "Cloning SDKs..."
             git clone --depth 1 https://github.com/theos/sdks "$THEOS_DIR/sdks"
           fi
+          if [ ! -f "$THEOS_DIR/vendor/ldid/ldid" ]; then
+            echo "Cloning ldid..."
+            rm -rf "$THEOS_DIR/vendor/ldid"
+            git clone --depth 1 https://github.com/theos/ldid "$THEOS_DIR/vendor/ldid"
+          fi
           echo "THEOS=$THEOS_DIR" >> $GITHUB_ENV
           echo "$THEOS_DIR/bin" >> $GITHUB_PATH
+          echo "$THEOS_DIR/vendor/ldid" >> $GITHUB_PATH
+          chmod +x "$THEOS_DIR/vendor/ldid/ldid" 2>/dev/null || true
+          ldid --help | head -1 || (echo "ldid binary not found"; ls -la "$THEOS_DIR/vendor/ldid/")
 
       - name: Setup GNU Make
         run: |
