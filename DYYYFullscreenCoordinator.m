@@ -119,16 +119,57 @@
 }
 + (CGFloat)heightForDetailRow:(CGFloat)height table:(UITableView *)table controller:(UIViewController *)controller {
     if (![NSThread isMainThread] || !DYYYGetBool(@"DYYYEnableFullScreen") || ![self usesDetailLayoutForController:controller]) return height;
-    // 直接用屏幕高度，不依赖 tableView.bounds（布局过程中 bounds 可能不对）。
-    // 这样 heightForRow 每次都返回正确的全屏高度，不需要事后修正缓存。
-    CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
-    return screenH > 0 ? screenH : height;
+    // 行高与 UITableView 分页视口使用同一尺寸，预加载时也不扣第二次底栏。
+    return height > 0 && table.bounds.size.height > 0 ? table.bounds.size.height : height;
 }
 + (void)reconcileDetailPaging:(UIViewController *)controller {
-    // 不再做任何行高修正：heightForRow 已经直接返回全屏高度，
-    // UITableView 不会缓存错误行高，也不需要 beginUpdates/scrollToRow。
-    // 之前在这里做 beginUpdates/endUpdates 会导致可见 cell 错位（点A开B）
-    // 并打断播放器（不自动播放）。
+    if (![NSThread isMainThread] || !DYYYGetBool(@"DYYYEnableFullScreen") || ![self usesDetailLayoutForController:controller]) return;
+    if (![controller respondsToSelector:@selector(tableView)] || ![controller respondsToSelector:@selector(currentVisibleCellIndex)] ||
+        ![controller respondsToSelector:@selector(updateTableViewLayoutForTargetPageIndex:)]) return;
+    AWEAwemeDetailTableViewController *detail = (AWEAwemeDetailTableViewController *)controller;
+    UITableView *table = [detail tableView];
+    CGFloat height = table.bounds.size.height;
+    if (!table.window || height <= 0 || table.bounds.size.width <= 0 || [self hasCommentInWindow:table.window] ||
+        table.tracking || table.dragging || table.decelerating || table.numberOfSections != 1) return;
+
+    DYYYFullscreenPlayerState *state = [self state:table];
+    // 只执行一次：避免反复触发布局循环导致卡顿和播放器被打断。
+    if (state.detailReconciled || state.applying) return;
+
+    // 首次出现保护：contentOffset 还在初始位置时，原生还没应用 initialIndex，等待。
+    CGPoint offset = table.contentOffset;
+    if (fabs(offset.y) < 2.0) return;
+
+    NSInteger count = [table numberOfRowsInSection:0];
+    // 在 beginUpdates 之前记录 index（此时可见 cell 还是正确的 A）。
+    NSUInteger index = [detail currentVisibleCellIndex];
+    if (count <= 0 || index >= (NSUInteger)count) return;
+    NSIndexPath *firstIndex = [NSIndexPath indexPathForRow:0 inSection:0];
+    NSIndexPath *lastIndex = [NSIndexPath indexPathForRow:count - 1 inSection:0];
+    CGRect first = [table rectForRowAtIndexPath:firstIndex];
+    CGRect last = [table rectForRowAtIndexPath:lastIndex];
+
+    // 行高已正确，标记完成。
+    if (fabs(first.size.height - height) < 0.5 && fabs(last.size.height - height) < 0.5 &&
+        fabs(CGRectGetMinY(last) - CGRectGetMinY(first) - (count - 1) * height) < 0.5) {
+        state.detailReconciled = YES;
+        return;
+    }
+
+    // beginUpdates 刷新行高缓存，然后用原生 updateTableViewLayoutForTargetPageIndex:
+    // 按 beginUpdates 之前记录的 index 修正偏移（这个原生方法能正确处理行高变化后的 contentOffset）。
+    state.applying = YES;
+    @try {
+        [UIView performWithoutAnimation:^{
+            [table beginUpdates];
+            [table endUpdates];
+            [detail updateTableViewLayoutForTargetPageIndex:(NSInteger)index];
+            [table layoutIfNeeded];
+        }];
+    } @finally {
+        state.applying = NO;
+        state.detailReconciled = YES;
+    }
 }
 + (void)layoutBottomBar:(UIView *)bar controller:(UIViewController *)controller enabled:(BOOL)enabled {
     DYYYFullscreenPlayerState *state = [self state:bar];

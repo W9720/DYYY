@@ -7163,11 +7163,17 @@ static void DYYYLiveDurationInstallFromInnerFeedCell(id cell) {
 }
 
 // 直接提供全屏行高：绕过原生缓存（缓存了带底栏占位的旧行高）。
-// 用屏幕高度而非 tableView.bounds，因为布局过程中 bounds 可能不对。
-// 这样 UITableView 每次问行高都得到正确值，不需要 reconcileDetailPaging。
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
     CGFloat height = %orig;
     return [DYYYFullscreenCoordinator heightForDetailRow:height table:tableView controller:self];
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    // 延迟一帧：等原生完成 initialIndex 滚动 + 播放器启动后再修正行高缓存。
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [DYYYFullscreenCoordinator reconcileDetailPaging:self];
+    });
 }
 
 - (BOOL)prefersStatusBarHidden {
