@@ -119,65 +119,16 @@
 }
 + (CGFloat)heightForDetailRow:(CGFloat)height table:(UITableView *)table controller:(UIViewController *)controller {
     if (![NSThread isMainThread] || !DYYYGetBool(@"DYYYEnableFullScreen") || ![self usesDetailLayoutForController:controller]) return height;
-    // 行高与 UITableView 分页视口使用同一尺寸，预加载时也不扣第二次底栏。
-    return height > 0 && table.bounds.size.height > 0 ? table.bounds.size.height : height;
+    // 直接用屏幕高度，不依赖 tableView.bounds（布局过程中 bounds 可能不对）。
+    // 这样 heightForRow 每次都返回正确的全屏高度，不需要事后修正缓存。
+    CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
+    return screenH > 0 ? screenH : height;
 }
 + (void)reconcileDetailPaging:(UIViewController *)controller {
-    if (![NSThread isMainThread] || !DYYYGetBool(@"DYYYEnableFullScreen") || ![self usesDetailLayoutForController:controller]) return;
-    if (![controller respondsToSelector:@selector(tableView)] || ![controller respondsToSelector:@selector(currentVisibleCellIndex)] ||
-        ![controller respondsToSelector:@selector(updateTableViewLayoutForTargetPageIndex:)]) return;
-    AWEAwemeDetailTableViewController *detail = (AWEAwemeDetailTableViewController *)controller;
-    UITableView *table = [detail tableView];
-    CGFloat height = table.bounds.size.height;
-    if (!table.window || height <= 0 || table.bounds.size.width <= 0 || [self hasCommentInWindow:table.window] ||
-        table.tracking || table.dragging || table.decelerating || table.numberOfSections != 1) return;
-
-    DYYYFullscreenPlayerState *state = [self state:table];
-    // 只执行一次：行高修正只需要做一次，后续滚动由原生分页状态机自行处理。
-    // 反复执行会导致 currentVisibleCellIndex 抖动、卡顿、播放器被打断。
-    if (state.detailReconciled || state.applying) return;
-
-    // 首次出现保护：contentOffset 还在初始位置（y≈0）时，说明原生还没应用 initialIndex
-    // 滚到目标视频。此时 currentVisibleCellIndex 不可靠，等待原生先定位。
-    CGPoint offset = table.contentOffset;
-    if (fabs(offset.y) < 2.0) return;
-
-    NSInteger count = [table numberOfRowsInSection:0];
-    // 关键：在 beginUpdates 之前记录当前可见 index。
-    // beginUpdates/endUpdates 改行高后，UITableView 的可见 cell 会变化，
-    // 此时再取 currentVisibleCellIndex 会拿到相邻视频的 index，导致跳错。
-    NSUInteger index = [detail currentVisibleCellIndex];
-    if (count <= 0 || index >= (NSUInteger)count) return;
-    NSIndexPath *firstIndex = [NSIndexPath indexPathForRow:0 inSection:0];
-    NSIndexPath *lastIndex = [NSIndexPath indexPathForRow:count - 1 inSection:0];
-    CGRect first = [table rectForRowAtIndexPath:firstIndex];
-    CGRect last = [table rectForRowAtIndexPath:lastIndex];
-
-    // 所有行高 + 分页步长已经是全屏高度，说明缓存已正确，标记完成后跳过。
-    if (fabs(first.size.height - height) < 0.5 && fabs(last.size.height - height) < 0.5 &&
-        fabs(CGRectGetMinY(last) - CGRectGetMinY(first) - (count - 1) * height) < 0.5) {
-        state.detailReconciled = YES;
-        return;
-    }
-
-    // 行高缓存不对：beginUpdates/endUpdates 强制重查 heightForRow（因 baseTableViewBottomInset=0
-    // 原生返回全屏高度），然后用 scrollToRowAtIndexPath 回到 beginUpdates 之前记录的 index。
-    // 不调用 updateTableViewLayoutForTargetPageIndex:——它内部会重新计算 currentVisibleCellIndex，
-    // 而行高刚变完那个值不可靠，会跳到相邻视频再被原生切回，打断播放器导致不自动播放。
-    state.applying = YES;
-    @try {
-        [UIView performWithoutAnimation:^{
-            [table beginUpdates];
-            [table endUpdates];
-            [table scrollToRowAtIndexPath:[NSIndexPath indexPathForRow:index inSection:0]
-                          atScrollPosition:UITableViewScrollPositionTop
-                                  animated:NO];
-            [table layoutIfNeeded];
-        }];
-    } @finally {
-        state.applying = NO;
-        state.detailReconciled = YES;
-    }
+    // 不再做任何行高修正：heightForRow 已经直接返回全屏高度，
+    // UITableView 不会缓存错误行高，也不需要 beginUpdates/scrollToRow。
+    // 之前在这里做 beginUpdates/endUpdates 会导致可见 cell 错位（点A开B）
+    // 并打断播放器（不自动播放）。
 }
 + (void)layoutBottomBar:(UIView *)bar controller:(UIViewController *)controller enabled:(BOOL)enabled {
     DYYYFullscreenPlayerState *state = [self state:bar];
