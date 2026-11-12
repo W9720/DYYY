@@ -19,7 +19,6 @@
 @property(nonatomic, assign) CGPoint captionNativeCenter;
 @property(nonatomic, assign) CGPoint captionAppliedCenter;
 @property(nonatomic, assign) BOOL applying;
-@property(nonatomic, assign) BOOL detailReconciled;
 @property(nonatomic, assign) BOOL adjusted;
 @property(nonatomic, assign) CGRect normalWindowFrame;
 @property(nonatomic, assign) BOOL hasNormalWindowFrame;
@@ -122,53 +121,84 @@
     // 行高与 UITableView 分页视口使用同一尺寸，预加载时也不扣第二次底栏。
     return height > 0 && table.bounds.size.height > 0 ? table.bounds.size.height : height;
 }
-+ (void)reconcileDetailPaging:(UIViewController *)controller {
-    if (![NSThread isMainThread] || !DYYYGetBool(@"DYYYEnableFullScreen") || ![self usesDetailLayoutForController:controller]) return;
-    if (![controller respondsToSelector:@selector(tableView)] || ![controller respondsToSelector:@selector(currentVisibleCellIndex)] ||
-        ![controller respondsToSelector:@selector(updateTableViewLayoutForTargetPageIndex:)]) return;
-    AWEAwemeDetailTableViewController *detail = (AWEAwemeDetailTableViewController *)controller;
-    UITableView *table = [detail tableView];
-    CGFloat height = table.bounds.size.height;
-    if (!table.window || height <= 0 || table.bounds.size.width <= 0 || [self hasCommentInWindow:table.window] ||
-        table.tracking || table.dragging || table.decelerating || table.numberOfSections != 1) return;
+static const CGFloat kDYYYDetailHeightTol = 0.5;
 
-    DYYYFullscreenPlayerState *state = [self state:table];
-    // 只执行一次：避免反复触发布局循环导致卡顿和播放器被打断。
-    if (state.detailReconciled || state.applying) return;
+// 详情页建行/落点/翻页前准备表：首次调用就记录原高（带底栏的压缩值）并撑满视口。
+// 不能只记录不撑高——否则第一批行按压缩高度创建，行高被 UIKit 缓存后刷不回来。
+// 不碰 inset、不做 beginUpdates、不改分页状态：表高只有一个写入通道。
++ (void)prepareDetailTableNew:(UIViewController *)controller {
+    if (!DYYYGetBool(@"DYYYEnableFullScreen") || !NSThread.isMainThread || !controller) return;
+    if (![controller respondsToSelector:@selector(tableView)]) return;
+    UITableView *table = [(id)controller tableView];
+    if (!table) return;
+    UIView *root = controller.viewIfLoaded;
+    if (!root) return;
+    // 半屏/异形窗口（键盘态、小窗）不接管。
+    UIWindow *window = table.window ?: root.window;
+    if (window && window.windowLevel != UIWindowLevelNormal) return;
+    if (table.superview && ![table isDescendantOfView:root]) return;
+    if (!CGAffineTransformIsIdentity(table.transform)) return;
 
-    // 首次出现保护：contentOffset 还在初始位置时，原生还没应用 initialIndex，等待。
-    CGPoint offset = table.contentOffset;
-    if (fabs(offset.y) < 2.0) return;
+    CGFloat target = table.superview ? CGRectGetHeight(table.superview.bounds) : CGRectGetHeight(root.bounds);
+    CGRect adjusted = [self adjustDetailTableFrame:table frame:table.frame target:target];
+    if (CGRectIsNull(adjusted)) return;
+    table.frame = adjusted;
+}
 
-    NSInteger count = [table numberOfRowsInSection:0];
-    // 在 beginUpdates 之前记录 index（此时可见 cell 还是正确的 A）。
-    NSUInteger index = [detail currentVisibleCellIndex];
-    if (count <= 0 || index >= (NSUInteger)count) return;
-    NSIndexPath *firstIndex = [NSIndexPath indexPathForRow:0 inSection:0];
-    NSIndexPath *lastIndex = [NSIndexPath indexPathForRow:count - 1 inSection:0];
-    CGRect first = [table rectForRowAtIndexPath:firstIndex];
-    CGRect last = [table rectForRowAtIndexPath:lastIndex];
+// 表高唯一写入通道：被底栏压缩过的表当场顶回满视口。
+// 返回 CGRectNull = 放行不干预（已撑高 / 半成品 / 未接管）。
++ (CGRect)adjustDetailTableFrame:(UIView *)table frame:(CGRect)frame {
+    if (!table) return CGRectNull;
+    UIView *parent = table.superview;
+    CGFloat target = parent ? CGRectGetHeight(parent.bounds) : 0;
+    return [self adjustDetailTableFrame:table frame:frame target:target];
+}
 
-    // 行高已正确，标记完成。
-    if (fabs(first.size.height - height) < 0.5 && fabs(last.size.height - height) < 0.5 &&
-        fabs(CGRectGetMinY(last) - CGRectGetMinY(first) - (count - 1) * height) < 0.5) {
-        state.detailReconciled = YES;
-        return;
++ (CGRect)adjustDetailTableFrame:(UIView *)table frame:(CGRect)frame target:(CGFloat)target {
+    if (!table) return CGRectNull;
+    if (!DYYYGetBool(@"DYYYEnableFullScreen")) {
+        // 关闭后一律放行，抖音写什么就是什么；标记清掉避免继续干预。
+        objc_setAssociatedObject(table, @selector(prepareDetailTableNew:), nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        return CGRectNull;
     }
+    CGFloat current = CGRectGetHeight(frame);
+    // 容器不比来意更高 → 没被底栏压缩过（搜索页/聊天页）；不到容器一半 → 布局早期半成品。
+    if (!isfinite(target) || !isfinite(current) || target <= 0.0 || current >= target - kDYYYDetailHeightTol || current < target * 0.5) {
+        return CGRectNull;
+    }
+    if (!objc_getAssociatedObject(table, @selector(prepareDetailTableNew:))) {
+        objc_setAssociatedObject(table, @selector(prepareDetailTableNew:), @(current), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    frame.size.height = target;
+    return frame;
+}
 
-    // beginUpdates 刷新行高缓存，然后用原生 updateTableViewLayoutForTargetPageIndex:
-    // 按 beginUpdates 之前记录的 index 修正偏移（这个原生方法能正确处理行高变化后的 contentOffset）。
-    state.applying = YES;
-    @try {
-        [UIView performWithoutAnimation:^{
-            [table beginUpdates];
-            [table endUpdates];
-            [detail updateTableViewLayoutForTargetPageIndex:(NSInteger)index];
-            [table layoutIfNeeded];
-        }];
-    } @finally {
-        state.applying = NO;
-        state.detailReconciled = YES;
+// 行高只“回答”，不改写任何东西：表已撑高时把整页行高答成满视口，特殊行与未就绪尺寸透传。
++ (double)detailRowHeight:(UITableView *)table nativeHeight:(double)nativeHeight {
+    if (!DYYYGetBool(@"DYYYEnableFullScreen") || !NSThread.isMainThread || !table) return nativeHeight;
+    NSNumber *original = objc_getAssociatedObject(table, @selector(prepareDetailTableNew:));
+    CGFloat target = CGRectGetHeight(table.bounds);
+    if (!original || !isfinite(nativeHeight) || !isfinite(target) || nativeHeight <= 0.0 ||
+        target <= original.doubleValue + kDYYYDetailHeightTol) {
+        return nativeHeight;
+    }
+    if (fabs(nativeHeight - original.doubleValue) > kDYYYDetailHeightTol &&
+        fabs(nativeHeight - target) > kDYYYDetailHeightTol) {
+        return nativeHeight;
+    }
+    return target;
+}
+
+// 清掉撑高前按旧高度创建的残留 cell（只在高度接近满视口时对齐，避免误伤特殊行）。
++ (void)alignExistingCellsIfNeeded:(UITableView *)table target:(CGFloat)target {
+    if (!table || target <= 0) return;
+    for (UITableViewCell *cell in table.visibleCells) {
+        CGFloat height = CGRectGetHeight(cell.frame);
+        if (height > 0 && fabs(height - target) > 0.5 && height >= target * 0.5) {
+            CGRect frame = cell.frame;
+            frame.size.height = target;
+            cell.frame = frame;
+        }
     }
 }
 + (void)layoutBottomBar:(UIView *)bar controller:(UIViewController *)controller enabled:(BOOL)enabled {

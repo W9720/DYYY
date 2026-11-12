@@ -1309,6 +1309,14 @@ typedef NS_ENUM(NSUInteger, DYEdgeMode) {
 - (NSUInteger)currentVisibleCellIndex;
 - (void)updateTableViewLayoutForTargetPageIndex:(NSInteger)index;
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath;
+- (double)fixedCellHeight;
+- (double)cellHeightAtIndex:(long long)index;
+- (double)contentOffsetYForCellAtIndex:(long long)index;
+- (void)setupDetailTableView;
+- (void)adjustTableViewHeightForTargetIndex:(long long)index;
+@end
+// 详情表基类：抖音会把表高写回带底栏的压缩值，全屏需要在此拦截。
+@interface AWEFeedDataSafeTableView : UITableView
 @end
 @interface AWEAwemeHotSpotTableViewController : UIViewController
 - (BOOL)prefersStatusBarHidden;

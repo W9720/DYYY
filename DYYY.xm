@@ -7162,18 +7162,64 @@ static void DYYYLiveDurationInstallFromInnerFeedCell(id cell) {
     return [DYYYFullscreenCoordinator bottomInsetForDetail:inset controller:self];
 }
 
-// 直接提供全屏行高：绕过原生缓存（缓存了带底栏占位的旧行高）。
-- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
-    CGFloat height = %orig;
-    return [DYYYFullscreenCoordinator heightForDetailRow:height table:tableView controller:self];
+// 详情页全屏：表高只有一个写入通道，落点/建行/分页必须先撑高再放行原生。
+// 落点在 adjustTableViewHeightForTargetIndex: 内算定；若放行前表还是带底栏的
+// 压缩高度，落点就用旧高度 → cell 随后变高 → 落到隔壁页（点A弹B）。
+// 行高只“回答”满视口高度，不改写 cell，也不做 beginUpdates/分页状态修正。
+- (double)fixedCellHeight {
+    if (!DYYYGetBool(@"DYYYEnableFullScreen") || !NSThread.isMainThread) return %orig;
+    [DYYYFullscreenCoordinator prepareDetailTableNew:self];
+    double nativeHeight = %orig;
+    return [DYYYFullscreenCoordinator detailRowHeight:[self tableView] nativeHeight:nativeHeight];
 }
 
-- (void)viewDidAppear:(BOOL)animated {
+- (double)cellHeightAtIndex:(long long)index {
+    return [self fixedCellHeight];
+}
+
+- (double)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
+    if (!DYYYGetBool(@"DYYYEnableFullScreen") || !NSThread.isMainThread) return %orig;
+    [DYYYFullscreenCoordinator prepareDetailTableNew:self];
+    double nativeHeight = %orig;
+    return [DYYYFullscreenCoordinator detailRowHeight:tableView nativeHeight:nativeHeight];
+}
+
+- (void)setupDetailTableView {
     %orig;
-    // 延迟一帧：等原生完成 initialIndex 滚动 + 播放器启动后再修正行高缓存。
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [DYYYFullscreenCoordinator reconcileDetailPaging:self];
-    });
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+        [DYYYFullscreenCoordinator prepareDetailTableNew:self];
+    }
+}
+
+- (void)viewWillLayoutSubviews {
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+        [DYYYFullscreenCoordinator prepareDetailTableNew:self];
+    }
+    %orig;
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+        [DYYYFullscreenCoordinator prepareDetailTableNew:self];
+    }
+}
+
+- (double)contentOffsetYForCellAtIndex:(long long)index {
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+        [DYYYFullscreenCoordinator prepareDetailTableNew:self];
+    }
+    return %orig;
+}
+
+- (void)adjustTableViewHeightForTargetIndex:(long long)index {
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+        [DYYYFullscreenCoordinator prepareDetailTableNew:self];
+    }
+    %orig;
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+        [DYYYFullscreenCoordinator prepareDetailTableNew:self];
+        UITableView *table = [self tableView];
+        if (table) {
+            [DYYYFullscreenCoordinator alignExistingCellsIfNeeded:table target:CGRectGetHeight(table.superview.bounds)];
+        }
+    }
 }
 
 - (BOOL)prefersStatusBarHidden {
@@ -7189,6 +7235,21 @@ static void DYYYLiveDurationInstallFromInnerFeedCell(id cell) {
     }
     return NO;
 }
+%end
+
+// 详情表写入通道：详情表继承自 AWEFeedDataSafeTableView。
+// 抖音把表高写回带底栏的压缩值时，在写入那一刻就顶回满视口，不等下次布局。
+%hook AWEFeedDataSafeTableView
+
+- (void)setFrame:(CGRect)frame {
+    if (!DYYYGetBool(@"DYYYEnableFullScreen") || !NSThread.isMainThread) {
+        %orig;
+        return;
+    }
+    CGRect adjusted = [DYYYFullscreenCoordinator adjustDetailTableFrame:self frame:frame];
+    %orig(CGRectIsNull(adjusted) ? frame : adjusted);
+}
+
 %end
 
 // 热点状态栏

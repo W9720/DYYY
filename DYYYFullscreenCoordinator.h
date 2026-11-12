@@ -8,7 +8,13 @@
 + (BOOL)usesFullscreenLayoutForController:(UIViewController *)controller;
 + (CGRect)frameForPureModeContainer:(UIViewController *)controller proposed:(CGRect)frame;
 + (CGFloat)bottomInsetForDetail:(CGFloat)inset controller:(UIViewController *)controller;
-+ (void)reconcileDetailPaging:(UIViewController *)controller;
+// 详情页全屏：表高只有一个写入通道（adjustDetailTableFrame），
+// 建行/落点/翻页入口在放行原生之前先把表撑回满视口，让落点与行高同源。
++ (void)prepareDetailTableNew:(UIViewController *)controller;
++ (CGRect)adjustDetailTableFrame:(UIView *)table frame:(CGRect)frame;
++ (CGRect)adjustDetailTableFrame:(UIView *)table frame:(CGRect)frame target:(CGFloat)target;
++ (double)detailRowHeight:(UITableView *)table nativeHeight:(double)nativeHeight;
++ (void)alignExistingCellsIfNeeded:(UITableView *)table target:(CGFloat)target;
 + (CGFloat)heightForDetailRow:(CGFloat)height table:(UITableView *)table controller:(UIViewController *)controller;
 + (BOOL)layoutNativeInteraction:(UIViewController *)controller;
 + (BOOL)isImageContentController:(UIViewController *)controller;
