@@ -130,8 +130,9 @@
     if (!table.window || height <= 0 || table.bounds.size.width <= 0 || [self hasCommentInWindow:table.window] ||
         table.tracking || table.dragging || table.decelerating || table.numberOfSections != 1) return;
 
-    // 首次出现保护：contentOffset 还在初始位置时跳过，让原生先应用 initialIndex 完成首次定位。
-    // DYYY 的 heightForDetailRow: 会动态提供正确的全屏行高，不需要在这里强行 beginUpdates 重算。
+    // 首次出现保护：contentOffset 还在初始位置（y≈0）时，说明抖音原生还没应用 initialIndex
+    // 滚到目标视频。此时 currentVisibleCellIndex 不可靠，若用它重算分页会跳到错误位置。
+    // 让原生先完成首次定位，后续滚过之后 contentOffset 非零时再调整。
     CGPoint offset = table.contentOffset;
     if (fabs(offset.y) < 2.0) return;
 
@@ -145,13 +146,30 @@
     CGRect first = [table rectForRowAtIndexPath:firstIndex];
     CGRect last = [table rectForRowAtIndexPath:lastIndex];
 
-    // 如果所有行高 + 分页步长已经是全屏高度，说明行高缓存已正确，跳过。
+    // 所有行高 + 分页步长已经是全屏高度，说明缓存已正确，跳过（大多数时候走这里，零开销）。
     if (fabs(first.size.height - height) < 0.5 && fabs(last.size.height - height) < 0.5 &&
         fabs(CGRectGetMinY(last) - CGRectGetMinY(first) - (count - 1) * height) < 0.5) return;
 
-    // 行高不一致：让 heightForDetailRow: 动态提供正确值，下一次滚动就会生效。
-    // 不再调用 beginUpdates/endUpdates（会卡顿）或 updateTableViewLayoutForTargetPageIndex:
-    // （会强制跳页打断刚启动的播放器）。原生已经正确定位，DYYY 只负责提供正确的行高。
+    // 行高缓存不对（可能还保留着带底栏占位的旧值）：
+    // 1. beginUpdates/endUpdates 强制 UITableView 重新查询 heightForRowAtIndexPath:
+    //    （因 baseTableViewBottomInset 已返回 0，原生会返回全屏高度）
+    // 2. 用 scrollToRowAtIndexPath: 温和地回到当前可见视频，不调用原生的
+    //    updateTableViewLayoutForTargetPageIndex:（那个会触发原生分页状态机，
+    //    打断刚启动的播放器导致不自动播放，且可能跳错视频）。
+    state = [self state:table];
+    state.applying = YES;
+    @try {
+        [UIView performWithoutAnimation:^{
+            [table beginUpdates];
+            [table endUpdates];
+            [table scrollToRowAtIndexPath:[NSIndexPath indexPathForRow:index inSection:0]
+                          atScrollPosition:UITableViewScrollPositionTop
+                                  animated:NO];
+            [table layoutIfNeeded];
+        }];
+    } @finally {
+        state.applying = NO;
+    }
 }
 + (void)layoutBottomBar:(UIView *)bar controller:(UIViewController *)controller enabled:(BOOL)enabled {
     DYYYFullscreenPlayerState *state = [self state:bar];

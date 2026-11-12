@@ -7157,11 +7157,6 @@ static void DYYYLiveDurationInstallFromInnerFeedCell(id cell) {
 // 主页状态栏
 %hook AWEAwemeDetailTableViewController
 
-- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
-    CGFloat height = %orig;
-    return [DYYYFullscreenCoordinator heightForDetailRow:height table:tableView controller:self];
-}
-
 - (CGFloat)baseTableViewBottomInset {
     CGFloat inset = %orig;
     return [DYYYFullscreenCoordinator bottomInsetForDetail:inset controller:self];
