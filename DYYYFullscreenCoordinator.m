@@ -143,6 +143,9 @@
     if (fabs(offset.y) < 2.0) return;
 
     NSInteger count = [table numberOfRowsInSection:0];
+    // 关键：在 beginUpdates 之前记录当前可见 index。
+    // beginUpdates/endUpdates 改行高后，UITableView 的可见 cell 会变化，
+    // 此时再取 currentVisibleCellIndex 会拿到相邻视频的 index，导致跳错。
     NSUInteger index = [detail currentVisibleCellIndex];
     if (count <= 0 || index >= (NSUInteger)count) return;
     NSIndexPath *firstIndex = [NSIndexPath indexPathForRow:0 inSection:0];
@@ -158,14 +161,17 @@
     }
 
     // 行高缓存不对：beginUpdates/endUpdates 强制重查 heightForRow（因 baseTableViewBottomInset=0
-    // 原生返回全屏高度），再用原生 updateTableViewLayoutForTargetPageIndex: 按当前 index
-    // 修正分页偏移。这是原生自己的方法，能正确处理行高变化后的 contentOffset。
+    // 原生返回全屏高度），然后用 scrollToRowAtIndexPath 回到 beginUpdates 之前记录的 index。
+    // 不调用 updateTableViewLayoutForTargetPageIndex:——它内部会重新计算 currentVisibleCellIndex，
+    // 而行高刚变完那个值不可靠，会跳到相邻视频再被原生切回，打断播放器导致不自动播放。
     state.applying = YES;
     @try {
         [UIView performWithoutAnimation:^{
             [table beginUpdates];
             [table endUpdates];
-            [detail updateTableViewLayoutForTargetPageIndex:(NSInteger)index];
+            [table scrollToRowAtIndexPath:[NSIndexPath indexPathForRow:index inSection:0]
+                          atScrollPosition:UITableViewScrollPositionTop
+                                  animated:NO];
             [table layoutIfNeeded];
         }];
     } @finally {
