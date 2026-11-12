@@ -7162,14 +7162,16 @@ static void DYYYLiveDurationInstallFromInnerFeedCell(id cell) {
     return [DYYYFullscreenCoordinator bottomInsetForDetail:inset controller:self];
 }
 
-- (void)viewDidLayoutSubviews {
-    %orig;
-    [DYYYFullscreenCoordinator reconcileDetailPaging:self];
-}
+// 不在 viewDidLayoutSubviews 里调 reconcileDetailPaging：
+// 原生在定位过程中会多次触发布局，此时 currentVisibleCellIndex 不可靠，
+// 提前跑会用错 index 跳错视频（点 A 开 B）、打断播放器（不自动播放）。
 
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
-    [DYYYFullscreenCoordinator reconcileDetailPaging:self];
+    // 延迟一帧：等原生完成 initialIndex 滚动 + 播放器启动后再修正行高缓存。
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [DYYYFullscreenCoordinator reconcileDetailPaging:self];
+    });
 }
 
 - (BOOL)prefersStatusBarHidden {

@@ -19,6 +19,7 @@
 @property(nonatomic, assign) CGPoint captionNativeCenter;
 @property(nonatomic, assign) CGPoint captionAppliedCenter;
 @property(nonatomic, assign) BOOL applying;
+@property(nonatomic, assign) BOOL detailReconciled;
 @property(nonatomic, assign) BOOL adjusted;
 @property(nonatomic, assign) CGRect normalWindowFrame;
 @property(nonatomic, assign) BOOL hasNormalWindowFrame;
@@ -123,21 +124,24 @@
 }
 + (void)reconcileDetailPaging:(UIViewController *)controller {
     if (![NSThread isMainThread] || !DYYYGetBool(@"DYYYEnableFullScreen") || ![self usesDetailLayoutForController:controller]) return;
-    if (![controller respondsToSelector:@selector(tableView)] || ![controller respondsToSelector:@selector(currentVisibleCellIndex)]) return;
+    if (![controller respondsToSelector:@selector(tableView)] || ![controller respondsToSelector:@selector(currentVisibleCellIndex)] ||
+        ![controller respondsToSelector:@selector(updateTableViewLayoutForTargetPageIndex:)]) return;
     AWEAwemeDetailTableViewController *detail = (AWEAwemeDetailTableViewController *)controller;
     UITableView *table = [detail tableView];
     CGFloat height = table.bounds.size.height;
     if (!table.window || height <= 0 || table.bounds.size.width <= 0 || [self hasCommentInWindow:table.window] ||
         table.tracking || table.dragging || table.decelerating || table.numberOfSections != 1) return;
 
-    // 首次出现保护：contentOffset 还在初始位置（y≈0）时，说明抖音原生还没应用 initialIndex
-    // 滚到目标视频。此时 currentVisibleCellIndex 不可靠，若用它重算分页会跳到错误位置。
-    // 让原生先完成首次定位，后续滚过之后 contentOffset 非零时再调整。
+    DYYYFullscreenPlayerState *state = [self state:table];
+    // 只执行一次：行高修正只需要做一次，后续滚动由原生分页状态机自行处理。
+    // 反复执行会导致 currentVisibleCellIndex 抖动、卡顿、播放器被打断。
+    if (state.detailReconciled || state.applying) return;
+
+    // 首次出现保护：contentOffset 还在初始位置（y≈0）时，说明原生还没应用 initialIndex
+    // 滚到目标视频。此时 currentVisibleCellIndex 不可靠，等待原生先定位。
     CGPoint offset = table.contentOffset;
     if (fabs(offset.y) < 2.0) return;
 
-    DYYYFullscreenPlayerState *state = objc_getAssociatedObject(table, @selector(state:));
-    if (state.applying) return;
     NSInteger count = [table numberOfRowsInSection:0];
     NSUInteger index = [detail currentVisibleCellIndex];
     if (count <= 0 || index >= (NSUInteger)count) return;
@@ -146,29 +150,27 @@
     CGRect first = [table rectForRowAtIndexPath:firstIndex];
     CGRect last = [table rectForRowAtIndexPath:lastIndex];
 
-    // 所有行高 + 分页步长已经是全屏高度，说明缓存已正确，跳过（大多数时候走这里，零开销）。
+    // 所有行高 + 分页步长已经是全屏高度，说明缓存已正确，标记完成后跳过。
     if (fabs(first.size.height - height) < 0.5 && fabs(last.size.height - height) < 0.5 &&
-        fabs(CGRectGetMinY(last) - CGRectGetMinY(first) - (count - 1) * height) < 0.5) return;
+        fabs(CGRectGetMinY(last) - CGRectGetMinY(first) - (count - 1) * height) < 0.5) {
+        state.detailReconciled = YES;
+        return;
+    }
 
-    // 行高缓存不对（可能还保留着带底栏占位的旧值）：
-    // 1. beginUpdates/endUpdates 强制 UITableView 重新查询 heightForRowAtIndexPath:
-    //    （因 baseTableViewBottomInset 已返回 0，原生会返回全屏高度）
-    // 2. 用 scrollToRowAtIndexPath: 温和地回到当前可见视频，不调用原生的
-    //    updateTableViewLayoutForTargetPageIndex:（那个会触发原生分页状态机，
-    //    打断刚启动的播放器导致不自动播放，且可能跳错视频）。
-    state = [self state:table];
+    // 行高缓存不对：beginUpdates/endUpdates 强制重查 heightForRow（因 baseTableViewBottomInset=0
+    // 原生返回全屏高度），再用原生 updateTableViewLayoutForTargetPageIndex: 按当前 index
+    // 修正分页偏移。这是原生自己的方法，能正确处理行高变化后的 contentOffset。
     state.applying = YES;
     @try {
         [UIView performWithoutAnimation:^{
             [table beginUpdates];
             [table endUpdates];
-            [table scrollToRowAtIndexPath:[NSIndexPath indexPathForRow:index inSection:0]
-                          atScrollPosition:UITableViewScrollPositionTop
-                                  animated:NO];
+            [detail updateTableViewLayoutForTargetPageIndex:(NSInteger)index];
             [table layoutIfNeeded];
         }];
     } @finally {
         state.applying = NO;
+        state.detailReconciled = YES;
     }
 }
 + (void)layoutBottomBar:(UIView *)bar controller:(UIViewController *)controller enabled:(BOOL)enabled {
